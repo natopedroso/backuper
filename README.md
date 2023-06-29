@@ -65,7 +65,7 @@ rclone config
 - keep every empty string
 - no to advanced
 - yes auto config 
-- enter on link that will appear
+- enter on link that will appear (CHECK THE PORT with the one you tunelled)
 - authorize via browser
 - done
 
