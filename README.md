@@ -45,10 +45,10 @@ supervisorctl restart backuper
 
 # USING RCLONE
 
-## TUNELLING SSH
+## TUNELLING WITH PUTTY
 Open a new terminal and run the following command:
 ```bash
-ssh -L 53682:localhost:53682 root@yourserverip
+53682:localhost:53682
 ```
 
 ## Install Rclone
