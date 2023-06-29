@@ -23,12 +23,16 @@ cron.schedule(config.cron, async () => {
           const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
           const exportProcess = exec(backupCommand);
 
-          exportProcess.on("exit", (code) => {
-            if (code === 0) {
-              console.log(`Folder backup created successfully: ${backupFileName}`);
-            } else {
-              console.error(`Error creating folder backup. Exit code: ${code}`);
-            }
+          await new Promise((resolve, reject) => {
+            exportProcess.on("exit", (code) => {
+              if (code === 0) {
+                console.log(`Folder backup created successfully: ${backupFileName}`);
+                resolve();
+              } else {
+                console.error(`Error creating folder backup. Exit code: ${code}`);
+                reject();
+              }
+            });
           });
         } catch (error) {
           console.error("Error creating folder backup:", error);
@@ -41,12 +45,16 @@ cron.schedule(config.cron, async () => {
     const backupCommand = `mysqldump --user=${config.user} --password=${config.password} --host=${config.host} --port=${config.port} ${config.database} > ${backupFilePath}`;
     const exportProcess = exec(backupCommand);
 
-    exportProcess.on("exit", (code) => {
-      if (code === 0) {
-        console.log(`Database backup created successfully: ${backupFileName}`);
-      } else {
-        console.error(`Error creating database backup. Exit code: ${code}`);
-      }
+    await new Promise((resolve, reject) => {
+      exportProcess.on("exit", (code) => {
+        if (code === 0) {
+          console.log(`Database backup created successfully: ${backupFileName}`);
+          resolve();
+        } else {
+          console.error(`Error creating database backup. Exit code: ${code}`);
+          reject();
+        }
+      });
     });
 
     /**
@@ -58,12 +66,16 @@ cron.schedule(config.cron, async () => {
         const rcloneCommand = `rclone sync ./backups ${rclone.name}:${rclone.path}`;
         const exportProcess = exec(rcloneCommand);
 
-        exportProcess.on("exit", (code) => {
-          if (code === 0) {
-            console.log(`Backup uploaded successfully to ${rclone.name}:${rclone.path}`);
-          } else {
-            console.error(`Error uploading backup to ${rclone.name}:${rclone.path}. Exit code: ${code}`);
-          }
+        await new Promise((resolve, reject) => {
+          exportProcess.on("exit", (code) => {
+            if (code === 0) {
+              console.log(`Backup uploaded successfully to ${rclone.name}:${rclone.path}`);
+              resolve();
+            } else {
+              console.error(`Error uploading backup to ${rclone.name}:${rclone.path}. Exit code: ${code}`);
+              reject();
+            }
+          });
         });
       } catch (error) {
         console.error("Error uploading backup:", error);
