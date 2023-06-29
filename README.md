@@ -13,10 +13,10 @@ git clone https://github.com/natopedroso/backuper
 
 ## Configure
 ```bash
-cp config.example.json config.json
-nano config.json
+cp config.js.example config.js
+nano config.js
 ```
-Configure the config.json file with your data.
+Configure the config.js file with your data.
 
 ## SUPERVISOR CONFIG
 ```bash
