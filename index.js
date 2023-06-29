@@ -12,6 +12,29 @@ cron.schedule(config.cron, async () => {
     console.log("Trying to backup", config);
 
     const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
+    /**
+     * CREATE A ZIP BACKUP FROM FOLDERS
+     */
+    if (config.folders && config.folders.length > 0) {
+      foreach(config.folders, async (folder) => {
+        try {
+          const backupFileName = `${folder.name}_${sufix}.zip`;
+          const backupFilePath = `./backups/${backupFileName}`;
+          const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
+          const exportProcess = exec(backupCommand);
+
+          exportProcess.on("exit", (code) => {
+            if (code === 0) {
+              console.log(`Folder backup created successfully: ${backupFileName}`);
+            } else {
+              console.error(`Error creating folder backup. Exit code: ${code}`);
+            }
+          });
+        } catch (error) {
+          console.error("Error creating folder backup:", error);
+        }
+      });
+    }
 
     const backupFileName = `${config.database}_${sufix}.sql`;
     const backupFilePath = `./backups/${backupFileName}`;
