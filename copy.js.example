@@ -1,0 +1,19 @@
+module.exports = {
+  config: {
+    user: "",
+    host: "",
+    database: "",
+    password: "",
+    port: "3306",
+
+    /**
+     * m: minute (0-59)
+     * H: hour (0-23)
+     * D: day of the month (1-31)
+     * M: month (1-12)
+     * DOW: day of the week (0-6) (Sunday to Saturday)
+     */
+    //     m H D M DOW command
+    cron: "0 0 * * *",
+  },
+};
