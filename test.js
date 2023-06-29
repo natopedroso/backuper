@@ -16,22 +16,23 @@ try {
    * CREATE A ZIP BACKUP FROM FOLDERS
    */
   if (config.folders && config.folders.length > 0) {
-    const folder = config.folders;
-    try {
-      const backupFileName = `${folder.name}_${sufix}.zip`;
-      const backupFilePath = `./backups/${backupFileName}`;
-      const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
-      const exportProcess = exec(backupCommand);
+    for (const folder of config.folders) {
+      try {
+        const backupFileName = `${folder.name}_${sufix}.zip`;
+        const backupFilePath = `./backups/${backupFileName}`;
+        const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
+        const exportProcess = exec(backupCommand);
 
-      exportProcess.on("exit", (code) => {
-        if (code === 0) {
-          console.log(`Folder backup created successfully: ${backupFileName}`);
-        } else {
-          console.error(`Error creating folder backup. Exit code: ${code}`);
-        }
-      });
-    } catch (error) {
-      console.error("Error creating folder backup:", error);
+        exportProcess.on("exit", (code) => {
+          if (code === 0) {
+            console.log(`Folder backup created successfully: ${backupFileName}`);
+          } else {
+            console.error(`Error creating folder backup. Exit code: ${code}`);
+          }
+        });
+      } catch (error) {
+        console.error("Error creating folder backup:", error);
+      }
     }
   }
 
@@ -52,21 +53,20 @@ try {
    * RCLONE SYNC
    */
   if (config.rclone) {
-    for (const rclone of config.rclone) {
-      try {
-        const rcloneCommand = `rclone sync ./backups ${rclone.name}:${rclone.path}`;
-        const exportProcess = exec(rcloneCommand);
+    const rclone = config.rclone;
+    try {
+      const rcloneCommand = `rclone sync ./backups ${rclone.name}:${rclone.path}`;
+      const exportProcess = exec(rcloneCommand);
 
-        exportProcess.on("exit", (code) => {
-          if (code === 0) {
-            console.log(`Backup uploaded successfully to ${rclone.name}:${rclone.path}`);
-          } else {
-            console.error(`Error uploading backup to ${rclone.name}:${rclone.path}. Exit code: ${code}`);
-          }
-        });
-      } catch (error) {
-        console.error("Error uploading backup:", error);
-      }
+      exportProcess.on("exit", (code) => {
+        if (code === 0) {
+          console.log(`Backup uploaded successfully to ${rclone.name}:${rclone.path}`);
+        } else {
+          console.error(`Error uploading backup to ${rclone.name}:${rclone}. Exit code: ${code}`);
+        }
+      });
+    } catch (error) {
+      console.error("Error uploading backup:", error);
     }
   }
 } catch (error) {
