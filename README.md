@@ -4,6 +4,7 @@
 - NODEJS
 - SUPERVISOR
 - ZIP (Optional, if you don´t want to backp the folder)
+- RCLONE (Optional, if you want to upload to cloud)
 
 ## Install
 ```bash
