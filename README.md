@@ -45,16 +45,17 @@ supervisorctl restart backuper
 
 # USING RCLONE
 
+## TUNELLING SSH
+Open a new terminal and run the following command:
+```bash
+ssh -L 53682:localhost:53682 root@yourserverip
+```
+
 ## Install Rclone
 ```bash
 sudo apt-get install rclone
 ```
 
-## Before Configing
-Open a second shell or terminal to create a tunell with the following command:
-```bash
-ssh -L 53682:localhost:53682 root@yourserverip
-```
 
 ## Configure Rclone
 ```bash
