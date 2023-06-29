@@ -37,10 +37,8 @@ module.exports = {
      * RCLONE
      */
     //rclone: {
-      // {
       //   name: "rclone1",
       //   path: "rclone1",
-      // },
     //},
   },
 };

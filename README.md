@@ -9,6 +9,7 @@
 ## Install
 ```bash
 git clone https://github.com/natopedroso/backuper
+cd backuper
 ```
 
 ## Configure
