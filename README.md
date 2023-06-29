@@ -67,29 +67,15 @@ rclone config
 - authorize via browser
 - done
 
-## Create a Supervisor to sync a folder
-```bash
-nano /etc/supervisor/conf.d/rclone.conf
-```
-
-### Copy and paste the following code:
-```bash
-[program:rclone]
-directory=/var/backuper
-command=rclone sync ./backups nameOfRemote:yourfolder
-autostart=true
-autorestart=true
-stderr_logfile=/var/log/rclone.err.log
-stdout_logfile=/var/log/rclone.out.log
-user=root
-```
-save the file and exit.
-
-### Reread Update and Restart supervisor
-```bash
-supervisorctl reread
-supervisorctl update
-supervisorctl restart rclone
+## Put the following code on your config.json file
+```javascript
+config: {
+    ...
+    rclone: {
+        name: 'yourrclonename',
+        path: '/path/to/your/folder'
+    }
+}
 ```
 
 

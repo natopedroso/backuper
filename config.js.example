@@ -22,5 +22,25 @@ module.exports = {
      */
     //     m H D M DOW command
     cron: "0 0 * * *",
+
+    /**
+     * FOLDERS
+     */
+    folders: [
+      // {
+      //   name: "folder1",
+      //   path: "/home/user/backup",
+      // },
+    ],
+
+    /**
+     * RCLONE
+     */
+    //rclone: {
+      // {
+      //   name: "rclone1",
+      //   path: "rclone1",
+      // },
+    //},
   },
 };
