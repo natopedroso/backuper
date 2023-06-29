@@ -21,6 +21,7 @@ const config = require("./config.js").config;
     if (config.rclone) {
       await index.rcloneSync();
     }
+    return;
   } catch (error) {
     console.error("Error creating database backup:", error);
   }
