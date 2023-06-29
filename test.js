@@ -1,5 +1,7 @@
 const index = require("./index.js");
 
+const config = require("./config.js").config;
+
 (async () => {
   try {
     console.log("Trying to backup", config);
