@@ -16,23 +16,22 @@ try {
    * CREATE A ZIP BACKUP FROM FOLDERS
    */
   if (config.folders && config.folders.length > 0) {
-    for (const folder of config.folders) {
-      try {
-        const backupFileName = `${folder.name}_${sufix}.zip`;
-        const backupFilePath = `./backups/${backupFileName}`;
-        const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
-        const exportProcess = exec(backupCommand);
+    const folder = config.folders;
+    try {
+      const backupFileName = `${folder.name}_${sufix}.zip`;
+      const backupFilePath = `./backups/${backupFileName}`;
+      const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
+      const exportProcess = exec(backupCommand);
 
-        exportProcess.on("exit", (code) => {
-          if (code === 0) {
-            console.log(`Folder backup created successfully: ${backupFileName}`);
-          } else {
-            console.error(`Error creating folder backup. Exit code: ${code}`);
-          }
-        });
-      } catch (error) {
-        console.error("Error creating folder backup:", error);
-      }
+      exportProcess.on("exit", (code) => {
+        if (code === 0) {
+          console.log(`Folder backup created successfully: ${backupFileName}`);
+        } else {
+          console.error(`Error creating folder backup. Exit code: ${code}`);
+        }
+      });
+    } catch (error) {
+      console.error("Error creating folder backup:", error);
     }
   }
 
