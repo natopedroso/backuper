@@ -16,7 +16,7 @@ try {
    * CREATE A ZIP BACKUP FROM FOLDERS
    */
   if (config.folders && config.folders.length > 0) {
-    foreach(config.folders, async (folder) => {
+    for (const folder of config.folders) {
       try {
         const backupFileName = `${folder.name}_${sufix}.zip`;
         const backupFilePath = `./backups/${backupFileName}`;
@@ -33,7 +33,7 @@ try {
       } catch (error) {
         console.error("Error creating folder backup:", error);
       }
-    });
+    }
   }
 
   const backupFileName = `${config.database}_${sufix}.sql`;
