@@ -7,6 +7,13 @@ module.exports = {
     port: "3306",
 
     /**
+     * DAILY: save a backup named with the day of the month (1-31)
+     * WEEKLY: save a backup named with the day of the week (1-7) (Sunday to Saturday)
+     * MONTHLY: save a backup named with the month (1-12)
+     */
+    loopMode: "WEEKLY",
+
+    /**
      * m: minute (0-59)
      * H: hour (0-23)
      * D: day of the month (1-31)
