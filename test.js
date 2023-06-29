@@ -62,7 +62,7 @@ try {
         if (code === 0) {
           console.log(`Backup uploaded successfully to ${rclone.name}:${rclone.path}`);
         } else {
-          console.error(`Error uploading backup to ${rclone.name}:${rclone}. Exit code: ${code}`);
+          console.error(`Error uploading backup to ${rclone.name}:${rclone.path}. Exit code: ${code}`);
         }
       });
     } catch (error) {
