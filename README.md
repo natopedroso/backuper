@@ -47,7 +47,7 @@ supervisorctl restart backuper
 # USING RCLONE
 
 ## TUNELLING WITH PUTTY
-Open a new terminal and run the following command:
+The tunneling is necessary to get the authorization code from rclone.
 ```bash
 53682:localhost:53682
 ```
@@ -68,6 +68,8 @@ rclone config
 - yes auto config 
 - enter on link that will appear (CHECK THE PORT with the one you tunelled)
 - authorize via browser
+- no to advanced
+- yes to confirm
 - done
 
 ## Put the following code on your config.json file
@@ -78,6 +80,7 @@ config: {
         name: 'yourrclonename',
         path: '/path/to/your/folder'
     }
+    ...
 }
 ```
 
