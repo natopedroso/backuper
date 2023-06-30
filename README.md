@@ -1,13 +1,17 @@
+# DESCRIPTION
+This is a simple backuper for linux VPS. It will zip a folder and upload it to a cloud service(optional). It can be used with supervisor to run in background.
+
 # INSTALLATION
 
 ## Requirements
 - NODEJS
 - SUPERVISOR
-- ZIP (Optional, if you don´t want to backp the folder)
-- RCLONE (Optional, if you want to upload to cloud)
+- ZIP (Optional, if you don´t want to backup a folder)
+- RCLONE (Optional, if you don´t want to upload to cloud)
 
 ## Install
 ```bash
+cd /var
 git clone https://github.com/natopedroso/backuper
 cd backuper
 ```
@@ -28,7 +32,7 @@ nano /etc/supervisor/conf.d/backuper.conf
 ```bash
 [program:backuper]
 directory=/var/backuper
-command=node /var/backuper/index.js
+command=node index
 autostart=true
 autorestart=true
 stderr_logfile=/var/log/backuper.err.log
