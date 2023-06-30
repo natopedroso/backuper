@@ -1,5 +1,6 @@
 # DESCRIPTION
-This is a simple backuper for linux VPS. It will zip a folder and upload it to a cloud service(optional). It can be used with supervisor to run in background.
+This is a simple backuper for linux VPS. 
+It backups a database and directories and uploads to a cloud service.
 
 # INSTALLATION
 
