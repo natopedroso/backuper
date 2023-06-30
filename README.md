@@ -68,7 +68,7 @@ sudo apt-get install rclone
 rclone config
 ```
 - enter the name;
-- keep every empty string
+- keep every string empty
 - no to advanced
 - yes auto config 
 - enter on link that will appear (CHECK THE PORT with the one you tunelled)
