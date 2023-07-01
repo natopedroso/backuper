@@ -5,8 +5,6 @@ const fs = require("fs");
 // PostgreSQL database connection configuration
 const config = require("./config.js").config;
 
-const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
-
 cron.schedule(config.cron, async () => {
   try {
     console.log("Trying to backup", config);
@@ -35,6 +33,8 @@ cron.schedule(config.cron, async () => {
  * FOLDER BACKUP
  */
 async function foldersBackUps() {
+  const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
+
   for (const folder of config.folders) {
     try {
       const backupFileName = `${folder.name}_${sufix}.zip`;
@@ -63,6 +63,8 @@ async function foldersBackUps() {
  * DATABASE BACKUP
  */
 async function databaseBackUp() {
+  const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
+
   const backupFileName = `${config.database}_${sufix}.sql`;
   const backupFilePath = `./backups/${backupFileName}`;
   const backupCommand = `mysqldump --user=${config.user} --password=${config.password} --host=${config.host} --port=${config.port} ${config.database} > ${backupFilePath}`;
@@ -85,6 +87,8 @@ async function databaseBackUp() {
  * RCLONE SYNC
  */
 async function rcloneSync() {
+  const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
+
   const rclone = config.rclone;
   try {
     const rcloneCommand = `rclone sync ./backups ${rclone.name}:${rclone.path}`;
