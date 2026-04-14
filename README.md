@@ -24,6 +24,20 @@ nano config.js
 ```
 Configure the config.js file with your data.
 
+## Ignore files/folders in folder backups
+If you need to ignore files or folders when creating zip backups, create a `.ignore` file in the project root (`backuper/.ignore`).
+
+Example:
+```bash
+# files
+*.log
+*.tmp
+
+# folders
+node_modules
+cache
+```
+
 ## SUPERVISOR CONFIG
 ```bash
 nano /etc/supervisor/conf.d/backuper.conf

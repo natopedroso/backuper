@@ -5,27 +5,31 @@ const path = require("path");
 
 // PostgreSQL database connection configuration
 const config = require("./config.js").config;
+const ignoreFile = path.join(__dirname, ".ignore");
 
 cron.schedule(config.cron, async () => {
   try {
     console.log("Trying to backup", config);
+    const createdBackupFiles = [];
 
     /**
      * CREATE A ZIP BACKUP FROM FOLDERS
      */
     if (config.folders && config.folders.length > 0) {
-      await foldersBackUps();
+      const folderBackupFiles = await foldersBackUps();
+      createdBackupFiles.push(...folderBackupFiles);
     }
 
-    await databaseBackUp();
+    const databaseBackupFile = await databaseBackUp();
+    createdBackupFiles.push(databaseBackupFile);
 
     /**
      * RCLONE SYNC
      */
     if (config.uploadMode === "ftp-curl" && config.ftpCurl) {
-      await ftpCurlUpload();
-    } else if (config.rclone) {
-      await rcloneSync();
+      await ftpCurlUpload(createdBackupFiles);
+    } else if (config.uploadMode === "rclone" && config.rclone) {
+      await rcloneSync(createdBackupFiles);
     }
   } catch (error) {
     console.error("Error creating database backup:", error);
@@ -37,18 +41,22 @@ cron.schedule(config.cron, async () => {
  */
 async function foldersBackUps() {
   const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
+  const ignorePatterns = buildZipIgnorePatterns(loadProjectIgnorePatterns());
+  const ignoreArgs = ignorePatterns.map((pattern) => `-x ${shellQuote(pattern)}`).join(" ");
+  const createdFiles = [];
 
   for (const folder of config.folders) {
     try {
       const backupFileName = `${folder.name}_${sufix}.zip`;
       const backupFilePath = `./backups/${backupFileName}`;
-      const backupCommand = `zip -r ${backupFilePath} ${folder.path}`;
+      const backupCommand = `zip -r ${shellQuote(backupFilePath)} ${shellQuote(folder.path)}${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
       const exportProcess = exec(backupCommand);
 
       await new Promise((resolve, reject) => {
         exportProcess.on("exit", (code) => {
           if (code === 0) {
             console.log(`Folder backup created successfully: ${backupFileName}`);
+            createdFiles.push(path.resolve(backupFilePath));
             resolve();
           } else {
             console.error(`Error creating folder backup. Exit code: ${code}`);
@@ -60,6 +68,45 @@ async function foldersBackUps() {
       console.error("Error creating folder backup:", error);
     }
   }
+
+  return createdFiles;
+}
+
+function loadProjectIgnorePatterns() {
+  if (!fs.existsSync(ignoreFile)) {
+    return [];
+  }
+
+  return fs
+    .readFileSync(ignoreFile, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+}
+
+function buildZipIgnorePatterns(rawPatterns) {
+  const unique = new Set();
+
+  for (const rawPattern of rawPatterns) {
+    const normalized = String(rawPattern || "")
+      .replace(/\\/g, "/")
+      .replace(/^\.\//, "")
+      .trim();
+
+    if (!normalized) {
+      continue;
+    }
+
+    unique.add(normalized);
+    unique.add(`*/${normalized}`);
+
+    if (!normalized.endsWith("/*")) {
+      unique.add(`${normalized}/*`);
+      unique.add(`*/${normalized}/*`);
+    }
+  }
+
+  return [...unique];
 }
 
 /**
@@ -84,30 +131,41 @@ async function databaseBackUp() {
       }
     });
   });
+
+  return path.resolve(backupFilePath);
 }
 
 /**
  * RCLONE SYNC
  */
-async function rcloneSync() {
-  const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
-
+async function rcloneSync(backupFiles = []) {
   const rclone = config.rclone;
-  try {
-    const rcloneCommand = `rclone sync ./backups ${rclone.name}:${rclone.path}`;
-    const exportProcess = exec(rcloneCommand);
 
-    await new Promise((resolve, reject) => {
-      exportProcess.on("exit", (code) => {
-        if (code === 0) {
-          console.log(`Backup uploaded successfully to ${rclone.name}:${rclone.path}`);
-          resolve();
-        } else {
-          console.error(`Error uploading backup to ${rclone.name}:${rclone.path}. Exit code: ${code}`);
-          reject();
-        }
+  if (!Array.isArray(backupFiles) || backupFiles.length === 0) {
+    console.log("No newly created backup files found for rclone upload.");
+    return;
+  }
+
+  try {
+    for (const localFile of backupFiles) {
+      const fileName = path.basename(localFile);
+      const remotePath = joinRemotePath(rclone.path, fileName);
+      const remoteTarget = `${rclone.name}:${remotePath}`;
+      const rcloneCommand = `rclone copyto ${shellQuote(localFile)} ${shellQuote(remoteTarget)}`;
+      const exportProcess = exec(rcloneCommand);
+
+      await new Promise((resolve, reject) => {
+        exportProcess.on("exit", (code) => {
+          if (code === 0) {
+            console.log(`Rclone upload completed: ${fileName}`);
+            resolve();
+          } else {
+            console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
+            reject();
+          }
+        });
       });
-    });
+    }
   } catch (error) {
     console.error("Error uploading backup:", error);
   }
@@ -136,7 +194,7 @@ function sanitizeRemotePath(remotePath) {
 /**
  * FTP UPLOAD WITH CURL
  */
-async function ftpCurlUpload() {
+async function ftpCurlUpload(backupFiles = []) {
   const ftp = config.ftpCurl;
 
   if (!ftp || !ftp.host || !ftp.user) {
@@ -144,19 +202,18 @@ async function ftpCurlUpload() {
     return;
   }
 
-  const backupDir = path.resolve("./backups");
-  const files = fs.readdirSync(backupDir).filter((fileName) => fs.statSync(path.join(backupDir, fileName)).isFile());
+  const files = Array.isArray(backupFiles) ? backupFiles.filter(Boolean) : [];
 
   if (files.length === 0) {
-    console.log("No backup files found to upload via FTP.");
+    console.log("No newly created backup files found for FTP upload.");
     return;
   }
 
   const remoteBasePath = sanitizeRemotePath(ftp.path || "/");
   const ftpPort = ftp.port || "21";
 
-  for (const fileName of files) {
-    const localFile = path.join(backupDir, fileName);
+  for (const localFile of files) {
+    const fileName = path.basename(localFile);
     const encodedFileName = encodeURIComponent(fileName);
     const targetUrl = `ftp://${ftp.host}:${ftpPort}${remoteBasePath}/${encodedFileName}`;
     const uploadCommand = [
@@ -186,6 +243,19 @@ async function ftpCurlUpload() {
       });
     });
   }
+}
+
+function joinRemotePath(basePath, fileName) {
+  const cleanedBase = String(basePath || "")
+    .replace(/\\/g, "/")
+    .replace(/\/+$/, "");
+  const cleanedFile = String(fileName || "").replace(/\\/g, "/").replace(/^\/+/, "");
+
+  if (!cleanedBase) {
+    return cleanedFile;
+  }
+
+  return `${cleanedBase}/${cleanedFile}`;
 }
 
 /**
