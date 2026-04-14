@@ -4,11 +4,15 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "start"
+    "start": "node index.js",
+    "start:supervisor": "supervisor -n index.js",
+    "install:project": "node install.js",
+    "test": "node test.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "node-cron": "^3.0.2"
+    "node-cron": "^3.0.2",
+    "supervisor": "^0.12.0"
   }
 }
