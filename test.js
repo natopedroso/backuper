@@ -16,10 +16,14 @@ const config = require("./config.js").config;
     await index.databaseBackUp();
 
     /**
-     * RCLONE SYNC
+     * UPLOAD
      */
-    if (config.rclone) {
+    if (config.uploadMode === "ftp-curl" && config.ftpCurl) {
+      await index.ftpCurlUpload();
+    } else if (config.uploadMode === "rclone" && config.rclone) {
       await index.rcloneSync();
+    } else {
+      console.log("Upload skipped (uploadMode=none or incomplete upload config).");
     }
     process.exit(0);
   } catch (error) {

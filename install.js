@@ -80,6 +80,63 @@ function parseCsv(csvValue) {
     .filter(Boolean);
 }
 
+function normalizeConfigForComparison(config) {
+  const safe = config || {};
+  const folders = Array.isArray(safe.folders)
+    ? safe.folders
+        .filter((folder) => folder && typeof folder === "object")
+        .map((folder) => ({
+          name: String(folder.name || ""),
+          path: String(folder.path || ""),
+        }))
+    : [];
+
+  const normalized = {
+    user: String(safe.user || ""),
+    host: String(safe.host || ""),
+    database: String(safe.database || ""),
+    password: String(safe.password || ""),
+    port: String(safe.port || "3306"),
+    loopMode: String(safe.loopMode || "WEEKLY").toUpperCase(),
+    cron: String(safe.cron || "0 0 * * *"),
+    uploadMode: String(safe.uploadMode || "none"),
+    folders,
+    rclone: null,
+    ftpCurl: null,
+  };
+
+  if (safe.rclone && typeof safe.rclone === "object") {
+    normalized.rclone = {
+      name: String(safe.rclone.name || ""),
+      path: String(safe.rclone.path || ""),
+    };
+  }
+
+  if (safe.ftpCurl && typeof safe.ftpCurl === "object") {
+    normalized.ftpCurl = {
+      host: String(safe.ftpCurl.host || ""),
+      path: String(safe.ftpCurl.path || "/"),
+      port: String(safe.ftpCurl.port || "21"),
+      user: String(safe.ftpCurl.user || ""),
+      password: String(safe.ftpCurl.password || ""),
+    };
+  }
+
+  if (normalized.uploadMode !== "rclone") {
+    normalized.rclone = null;
+  }
+
+  if (normalized.uploadMode !== "ftp-curl") {
+    normalized.ftpCurl = null;
+  }
+
+  return normalized;
+}
+
+function configsAreEqual(left, right) {
+  return JSON.stringify(normalizeConfigForComparison(left)) === JSON.stringify(normalizeConfigForComparison(right));
+}
+
 function loadCurrentConfig() {
   try {
     delete require.cache[require.resolve(configFile)];
@@ -194,11 +251,11 @@ async function configureConfigInteractive() {
     const defaultUploadMode = current.uploadMode || (hasCurrentRclone ? "rclone" : hasCurrentFtp ? "ftp-curl" : "none");
 
     const uploadModeAnswer = await askQuestion(rl, `Upload mode [none/rclone/ftp-curl] [${defaultUploadMode}]: `);
-    const uploadMode = (
+    const uploadModeRaw =
       String(uploadModeAnswer || "")
         .trim()
-        .toLowerCase() || defaultUploadMode
-    ).replace("ftp", "ftp-curl");
+        .toLowerCase() || defaultUploadMode;
+    const uploadMode = uploadModeRaw === "ftp" ? "ftp-curl" : uploadModeRaw;
 
     let rclone = null;
     if (uploadMode === "rclone") {
@@ -224,7 +281,7 @@ async function configureConfigInteractive() {
       };
     }
 
-    const content = generateConfigContent({
+    const nextConfig = {
       user,
       host,
       database,
@@ -236,7 +293,14 @@ async function configureConfigInteractive() {
       folders,
       rclone,
       ftpCurl,
-    });
+    };
+
+    if (configsAreEqual(current, nextConfig)) {
+      console.log("No changes detected. Keeping existing config.js unchanged.");
+      return;
+    }
+
+    const content = generateConfigContent(nextConfig);
 
     fs.writeFileSync(configFile, content, "utf8");
     console.log("config.js updated by interactive wizard.");
