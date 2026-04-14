@@ -98,13 +98,20 @@ function generateConfigContent(data) {
     .join("\n");
 
   const rcloneBlock = data.rclone
+    ? ["    rclone: {", `      name: ${toSingleQuoted(data.rclone.name)},`, `      path: ${toSingleQuoted(data.rclone.path)},`, "    },"].join("\n")
+    : "    // rclone: { name: 'your-rclone-name', path: '/target/path' },";
+
+  const ftpCurlBlock = data.ftpCurl
     ? [
-        "    rclone: {",
-        `      name: ${toSingleQuoted(data.rclone.name)},`,
-        `      path: ${toSingleQuoted(data.rclone.path)},`,
+        "    ftpCurl: {",
+        `      host: ${toSingleQuoted(data.ftpCurl.host)},`,
+        `      path: ${toSingleQuoted(data.ftpCurl.path)},`,
+        `      port: ${toSingleQuoted(data.ftpCurl.port || "21")},`,
+        `      user: ${toSingleQuoted(data.ftpCurl.user)},`,
+        `      password: ${toSingleQuoted(data.ftpCurl.password)},`,
         "    },",
       ].join("\n")
-    : "    // rclone: { name: 'your-rclone-name', path: '/target/path' },";
+    : "    // ftpCurl: { host: 'ftp.host.com', path: '/remote/path', port: '21', user: 'ftp-user', password: 'ftp-password' },";
 
   return [
     "module.exports = {",
@@ -117,12 +124,15 @@ function generateConfigContent(data) {
     "",
     `    loopMode: ${toSingleQuoted(data.loopMode)},`,
     `    cron: ${toSingleQuoted(data.cron)},`,
+    `    uploadMode: ${toSingleQuoted(data.uploadMode || "none")},`,
     "",
     "    folders: [",
     foldersLines || "      // { name: 'folder-name', path: '/folder/path' },",
     "    ],",
     "",
     rcloneBlock,
+    "",
+    ftpCurlBlock,
     "  },",
     "};",
     "",
@@ -149,37 +159,28 @@ async function configureConfigInteractive() {
     console.log("\nConfig wizard (press ENTER to keep current/default values)\n");
 
     const updateAnswer = await askQuestion(rl, "Do you want to update config.js now? [Y/n]: ");
-    if (String(updateAnswer || "").trim().toLowerCase() === "n") {
+    if (
+      String(updateAnswer || "")
+        .trim()
+        .toLowerCase() === "n"
+    ) {
       console.log("Keeping current config.js without changes.");
       return;
     }
 
     const user = (await askQuestion(rl, `DB user [${current.user || ""}]: `)).trim() || current.user || "";
     const host = (await askQuestion(rl, `DB host [${current.host || ""}]: `)).trim() || current.host || "";
-    const database =
-      (await askQuestion(rl, `DB name [${current.database || ""}]: `)).trim() || current.database || "";
-    const password =
-      (await askQuestion(rl, `DB password [${current.password || ""}]: `)).trim() || current.password || "";
+    const database = (await askQuestion(rl, `DB name [${current.database || ""}]: `)).trim() || current.database || "";
+    const password = (await askQuestion(rl, `DB password [${current.password || ""}]: `)).trim() || current.password || "";
     const port = (await askQuestion(rl, `DB port [${current.port || "3306"}]: `)).trim() || current.port || "3306";
 
-    const loopModeRaw =
-      (await askQuestion(rl, `Loop mode DAILY/WEEKLY/MONTHLY [${current.loopMode || "WEEKLY"}]: `)).trim() ||
-      current.loopMode ||
-      "WEEKLY";
+    const loopModeRaw = (await askQuestion(rl, `Loop mode DAILY/WEEKLY/MONTHLY [${current.loopMode || "WEEKLY"}]: `)).trim() || current.loopMode || "WEEKLY";
     const loopMode = String(loopModeRaw).toUpperCase();
 
     const cron = (await askQuestion(rl, `Cron [${current.cron || "0 0 * * *"}]: `)).trim() || current.cron || "0 0 * * *";
 
-    const namesInput =
-      (await askQuestion(
-        rl,
-        `Folder names (comma-separated) [${currentFolderNames || ""}] (empty to keep none): `
-      )).trim() || currentFolderNames;
-    const pathsInput =
-      (await askQuestion(
-        rl,
-        `Folder paths (comma-separated, same order) [${currentFolderPaths || ""}] (empty to keep none): `
-      )).trim() || currentFolderPaths;
+    const namesInput = (await askQuestion(rl, `Folder names (comma-separated) [${currentFolderNames || ""}] (empty to keep none): `)).trim() || currentFolderNames;
+    const pathsInput = (await askQuestion(rl, `Folder paths (comma-separated, same order) [${currentFolderPaths || ""}] (empty to keep none): `)).trim() || currentFolderPaths;
 
     const folderNames = parseCsv(namesInput);
     const folderPaths = parseCsv(pathsInput);
@@ -188,23 +189,39 @@ async function configureConfigInteractive() {
       folders.push({ name: folderNames[i], path: folderPaths[i] });
     }
 
-    const hasCurrentRclone = current.rclone && current.rclone.name && current.rclone.path;
-    const rcloneUseAnswer = await askQuestion(
-      rl,
-      `Enable rclone upload? [${hasCurrentRclone ? "Y/n" : "y/N"}]: `
-    );
-    const rcloneUse = String(rcloneUseAnswer || "").trim().toLowerCase();
-    const useRclone = hasCurrentRclone ? rcloneUse !== "n" : rcloneUse === "y";
+    const hasCurrentRclone = !!(current.rclone && current.rclone.name && current.rclone.path);
+    const hasCurrentFtp = !!(current.ftpCurl && current.ftpCurl.host && current.ftpCurl.path && current.ftpCurl.user);
+    const defaultUploadMode = current.uploadMode || (hasCurrentRclone ? "rclone" : hasCurrentFtp ? "ftp-curl" : "none");
+
+    const uploadModeAnswer = await askQuestion(rl, `Upload mode [none/rclone/ftp-curl] [${defaultUploadMode}]: `);
+    const uploadMode = (
+      String(uploadModeAnswer || "")
+        .trim()
+        .toLowerCase() || defaultUploadMode
+    ).replace("ftp", "ftp-curl");
 
     let rclone = null;
-    if (useRclone) {
-      const rcloneName =
-        (await askQuestion(rl, `Rclone remote name [${(current.rclone && current.rclone.name) || ""}]: `)).trim() ||
-        ((current.rclone && current.rclone.name) || "");
-      const rclonePath =
-        (await askQuestion(rl, `Rclone remote path [${(current.rclone && current.rclone.path) || ""}]: `)).trim() ||
-        ((current.rclone && current.rclone.path) || "");
+    if (uploadMode === "rclone") {
+      const rcloneName = (await askQuestion(rl, `Rclone remote name [${(current.rclone && current.rclone.name) || ""}]: `)).trim() || (current.rclone && current.rclone.name) || "";
+      const rclonePath = (await askQuestion(rl, `Rclone remote path [${(current.rclone && current.rclone.path) || ""}]: `)).trim() || (current.rclone && current.rclone.path) || "";
       rclone = { name: rcloneName, path: rclonePath };
+    }
+
+    let ftpCurl = null;
+    if (uploadMode === "ftp-curl") {
+      const ftpHost = (await askQuestion(rl, `FTP host [${(current.ftpCurl && current.ftpCurl.host) || ""}]: `)).trim() || (current.ftpCurl && current.ftpCurl.host) || "";
+      const ftpPath = (await askQuestion(rl, `FTP remote path [${(current.ftpCurl && current.ftpCurl.path) || "/"}]: `)).trim() || (current.ftpCurl && current.ftpCurl.path) || "/";
+      const ftpPort = (await askQuestion(rl, `FTP port [${(current.ftpCurl && current.ftpCurl.port) || "21"}]: `)).trim() || (current.ftpCurl && current.ftpCurl.port) || "21";
+      const ftpUser = (await askQuestion(rl, `FTP user [${(current.ftpCurl && current.ftpCurl.user) || ""}]: `)).trim() || (current.ftpCurl && current.ftpCurl.user) || "";
+      const ftpPassword = (await askQuestion(rl, `FTP password [${(current.ftpCurl && current.ftpCurl.password) || ""}]: `)).trim() || (current.ftpCurl && current.ftpCurl.password) || "";
+
+      ftpCurl = {
+        host: ftpHost,
+        path: ftpPath,
+        port: ftpPort,
+        user: ftpUser,
+        password: ftpPassword,
+      };
     }
 
     const content = generateConfigContent({
@@ -215,8 +232,10 @@ async function configureConfigInteractive() {
       port,
       loopMode,
       cron,
+      uploadMode,
       folders,
       rclone,
+      ftpCurl,
     });
 
     fs.writeFileSync(configFile, content, "utf8");

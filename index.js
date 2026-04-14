@@ -1,6 +1,7 @@
 const cron = require("node-cron");
 const { exec } = require("child_process");
 const fs = require("fs");
+const path = require("path");
 
 // PostgreSQL database connection configuration
 const config = require("./config.js").config;
@@ -21,7 +22,9 @@ cron.schedule(config.cron, async () => {
     /**
      * RCLONE SYNC
      */
-    if (config.rclone) {
+    if (config.uploadMode === "ftp-curl" && config.ftpCurl) {
+      await ftpCurlUpload();
+    } else if (config.rclone) {
       await rcloneSync();
     }
   } catch (error) {
@@ -110,6 +113,81 @@ async function rcloneSync() {
   }
 }
 
+function shellQuote(value) {
+  return `'${String(value || "").replace(/'/g, `'"'"'`)}'`;
+}
+
+function sanitizeRemotePath(remotePath) {
+  const cleaned = String(remotePath || "/").trim();
+  if (!cleaned) {
+    return "/";
+  }
+
+  const startsWithSlash = cleaned.startsWith("/");
+  const segments = cleaned
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment));
+  const normalized = `${startsWithSlash ? "/" : "/"}${segments.join("/")}`;
+
+  return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
+}
+
+/**
+ * FTP UPLOAD WITH CURL
+ */
+async function ftpCurlUpload() {
+  const ftp = config.ftpCurl;
+
+  if (!ftp || !ftp.host || !ftp.user) {
+    console.log("FTP config not found or incomplete. Skipping FTP upload.");
+    return;
+  }
+
+  const backupDir = path.resolve("./backups");
+  const files = fs.readdirSync(backupDir).filter((fileName) => fs.statSync(path.join(backupDir, fileName)).isFile());
+
+  if (files.length === 0) {
+    console.log("No backup files found to upload via FTP.");
+    return;
+  }
+
+  const remoteBasePath = sanitizeRemotePath(ftp.path || "/");
+  const ftpPort = ftp.port || "21";
+
+  for (const fileName of files) {
+    const localFile = path.join(backupDir, fileName);
+    const encodedFileName = encodeURIComponent(fileName);
+    const targetUrl = `ftp://${ftp.host}:${ftpPort}${remoteBasePath}/${encodedFileName}`;
+    const uploadCommand = [
+      "curl",
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--ftp-create-dirs",
+      "--user",
+      shellQuote(`${ftp.user}:${ftp.password || ""}`),
+      "-T",
+      shellQuote(localFile),
+      shellQuote(targetUrl),
+    ].join(" ");
+
+    const exportProcess = exec(uploadCommand);
+
+    await new Promise((resolve, reject) => {
+      exportProcess.on("exit", (code) => {
+        if (code === 0) {
+          console.log(`FTP upload completed: ${fileName}`);
+          resolve();
+        } else {
+          console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
+          reject();
+        }
+      });
+    });
+  }
+}
+
 /**
  * EXPORTS
  */
@@ -117,4 +195,5 @@ module.exports = {
   foldersBackUps,
   databaseBackUp,
   rcloneSync,
+  ftpCurlUpload,
 };

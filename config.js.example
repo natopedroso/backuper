@@ -24,6 +24,14 @@ module.exports = {
     cron: "0 0 * * *",
 
     /**
+     * UPLOAD MODE
+     * none: do not upload
+     * rclone: upload via rclone sync
+     * ftp-curl: upload via FTP using curl
+     */
+    uploadMode: "none",
+
+    /**
      * FOLDERS
      */
     folders: [
@@ -40,5 +48,16 @@ module.exports = {
       //   name: "rclone1",
       //   path: "rclone1",
     //},
+
+    /**
+     * FTP + CURL
+     */
+    // ftpCurl: {
+    //   host: "ftp.your-host.com",
+    //   path: "/remote/path",
+    //   port: "21",
+    //   user: "ftp-user",
+    //   password: "ftp-password",
+    // },
   },
 };
