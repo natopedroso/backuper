@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const readline = require("readline");
 
 const projectRoot = __dirname;
 const backupsDir = path.join(projectRoot, "backups");
@@ -60,6 +61,169 @@ function ensureConfigFile() {
 
   fs.copyFileSync(configExample, configFile);
   console.log("config.js created from config.js.example");
+}
+
+function askQuestion(rl, question) {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => resolve(answer));
+  });
+}
+
+function toSingleQuoted(value) {
+  return JSON.stringify(String(value == null ? "" : value)).replace(/"/g, "'");
+}
+
+function parseCsv(csvValue) {
+  return String(csvValue || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function loadCurrentConfig() {
+  try {
+    delete require.cache[require.resolve(configFile)];
+    const loaded = require(configFile);
+    return (loaded && loaded.config) || {};
+  } catch {
+    return {};
+  }
+}
+
+function generateConfigContent(data) {
+  const foldersLines = data.folders
+    .map((folder) => {
+      return `      { name: ${toSingleQuoted(folder.name)}, path: ${toSingleQuoted(folder.path)} },`;
+    })
+    .join("\n");
+
+  const rcloneBlock = data.rclone
+    ? [
+        "    rclone: {",
+        `      name: ${toSingleQuoted(data.rclone.name)},`,
+        `      path: ${toSingleQuoted(data.rclone.path)},`,
+        "    },",
+      ].join("\n")
+    : "    // rclone: { name: 'your-rclone-name', path: '/target/path' },";
+
+  return [
+    "module.exports = {",
+    "  config: {",
+    `    user: ${toSingleQuoted(data.user)},`,
+    `    host: ${toSingleQuoted(data.host)},`,
+    `    database: ${toSingleQuoted(data.database)},`,
+    `    password: ${toSingleQuoted(data.password)},`,
+    `    port: ${toSingleQuoted(data.port)},`,
+    "",
+    `    loopMode: ${toSingleQuoted(data.loopMode)},`,
+    `    cron: ${toSingleQuoted(data.cron)},`,
+    "",
+    "    folders: [",
+    foldersLines || "      // { name: 'folder-name', path: '/folder/path' },",
+    "    ],",
+    "",
+    rcloneBlock,
+    "  },",
+    "};",
+    "",
+  ].join("\n");
+}
+
+async function configureConfigInteractive() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.log("Non-interactive terminal detected. Keeping current config.js.");
+    return;
+  }
+
+  const current = loadCurrentConfig();
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const currentFolders = Array.isArray(current.folders) ? current.folders : [];
+  const currentFolderNames = currentFolders.map((f) => f.name).join(", ");
+  const currentFolderPaths = currentFolders.map((f) => f.path).join(", ");
+
+  try {
+    console.log("\nConfig wizard (press ENTER to keep current/default values)\n");
+
+    const updateAnswer = await askQuestion(rl, "Do you want to update config.js now? [Y/n]: ");
+    if (String(updateAnswer || "").trim().toLowerCase() === "n") {
+      console.log("Keeping current config.js without changes.");
+      return;
+    }
+
+    const user = (await askQuestion(rl, `DB user [${current.user || ""}]: `)).trim() || current.user || "";
+    const host = (await askQuestion(rl, `DB host [${current.host || ""}]: `)).trim() || current.host || "";
+    const database =
+      (await askQuestion(rl, `DB name [${current.database || ""}]: `)).trim() || current.database || "";
+    const password =
+      (await askQuestion(rl, `DB password [${current.password || ""}]: `)).trim() || current.password || "";
+    const port = (await askQuestion(rl, `DB port [${current.port || "3306"}]: `)).trim() || current.port || "3306";
+
+    const loopModeRaw =
+      (await askQuestion(rl, `Loop mode DAILY/WEEKLY/MONTHLY [${current.loopMode || "WEEKLY"}]: `)).trim() ||
+      current.loopMode ||
+      "WEEKLY";
+    const loopMode = String(loopModeRaw).toUpperCase();
+
+    const cron = (await askQuestion(rl, `Cron [${current.cron || "0 0 * * *"}]: `)).trim() || current.cron || "0 0 * * *";
+
+    const namesInput =
+      (await askQuestion(
+        rl,
+        `Folder names (comma-separated) [${currentFolderNames || ""}] (empty to keep none): `
+      )).trim() || currentFolderNames;
+    const pathsInput =
+      (await askQuestion(
+        rl,
+        `Folder paths (comma-separated, same order) [${currentFolderPaths || ""}] (empty to keep none): `
+      )).trim() || currentFolderPaths;
+
+    const folderNames = parseCsv(namesInput);
+    const folderPaths = parseCsv(pathsInput);
+    const folders = [];
+    for (let i = 0; i < Math.min(folderNames.length, folderPaths.length); i += 1) {
+      folders.push({ name: folderNames[i], path: folderPaths[i] });
+    }
+
+    const hasCurrentRclone = current.rclone && current.rclone.name && current.rclone.path;
+    const rcloneUseAnswer = await askQuestion(
+      rl,
+      `Enable rclone upload? [${hasCurrentRclone ? "Y/n" : "y/N"}]: `
+    );
+    const rcloneUse = String(rcloneUseAnswer || "").trim().toLowerCase();
+    const useRclone = hasCurrentRclone ? rcloneUse !== "n" : rcloneUse === "y";
+
+    let rclone = null;
+    if (useRclone) {
+      const rcloneName =
+        (await askQuestion(rl, `Rclone remote name [${(current.rclone && current.rclone.name) || ""}]: `)).trim() ||
+        ((current.rclone && current.rclone.name) || "");
+      const rclonePath =
+        (await askQuestion(rl, `Rclone remote path [${(current.rclone && current.rclone.path) || ""}]: `)).trim() ||
+        ((current.rclone && current.rclone.path) || "");
+      rclone = { name: rcloneName, path: rclonePath };
+    }
+
+    const content = generateConfigContent({
+      user,
+      host,
+      database,
+      password,
+      port,
+      loopMode,
+      cron,
+      folders,
+      rclone,
+    });
+
+    fs.writeFileSync(configFile, content, "utf8");
+    console.log("config.js updated by interactive wizard.");
+  } finally {
+    rl.close();
+  }
 }
 
 function createSupervisorConfig() {
@@ -149,20 +313,19 @@ function printNextSteps() {
   console.log("   sudo supervisorctl reread && sudo supervisorctl update && sudo supervisorctl restart backuper");
 }
 
-function main() {
+async function main() {
   console.log("Starting project installation...\n");
 
   ensureDir(backupsDir);
   run("npm install", "Installing dependencies...");
   ensureConfigFile();
+  await configureConfigInteractive();
   createSupervisorConfig();
   configureSystemSupervisor();
   printNextSteps();
 }
 
-try {
-  main();
-} catch (error) {
+main().catch((error) => {
   console.error("\nInstallation failed:", error.message);
   process.exit(1);
-}
+});
