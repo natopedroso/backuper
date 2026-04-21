@@ -160,7 +160,7 @@ async function rcloneSync(backupFiles = []) {
       const fileName = path.basename(localFile);
       const remotePath = joinRemotePath(rclone.path, fileName);
       const remoteTarget = `${rclone.name}:${remotePath}`;
-      const rcloneCommand = `rclone copy ${shellQuote(localFile)} ${shellQuote(remoteTarget)} --progress --transfers=4 --checkers=8 --retries=3 --low-level-retries=10 --drive-chunk-size=64M --stats=1s`;
+      const rcloneCommand = `rclone copyto ${shellQuote(localFile)} ${shellQuote(remoteTarget)} --progress --transfers=4 --checkers=8 --retries=3 --low-level-retries=10 --drive-chunk-size=64M --stats=1s`;
       const exportProcess = exec(rcloneCommand);
 
       await new Promise((resolve, reject) => {
