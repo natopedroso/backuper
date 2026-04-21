@@ -58,7 +58,7 @@ async function foldersBackUps() {
       exec(`cd ${shellQuote(currentFolder)}`);
 
       await new Promise((resolve, reject) => {
-        exportProcess.on("exit", (code) => {
+        exportProcess.on("close", (code) => {
           if (code === 0) {
             console.log(`Folder backup created successfully: ${backupFileName}`);
             createdFiles.push(path.resolve(backupFilePath));
@@ -129,7 +129,7 @@ async function databaseBackUp() {
   const exportProcess = exec(backupCommand);
 
   await new Promise((resolve, reject) => {
-    exportProcess.on("exit", (code) => {
+    exportProcess.on("close", (code) => {
       if (code === 0) {
         console.log(`Database backup created successfully: ${backupFileName}`);
         resolve();
@@ -165,7 +165,7 @@ async function rcloneSync(backupFiles = []) {
 
       await new Promise((resolve, reject) => {
         exportProcess
-          .on("exit", (code) => {
+          .on("close", (code) => {
             if (code === 0) {
               console.log(`Rclone upload completed: ${fileName}`);
               resolve();
