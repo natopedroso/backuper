@@ -159,15 +159,20 @@ async function rcloneSync(backupFiles = []) {
       const exportProcess = exec(rcloneCommand);
 
       await new Promise((resolve, reject) => {
-        exportProcess.on("exit", (code) => {
-          if (code === 0) {
-            console.log(`Rclone upload completed: ${fileName}`);
-            resolve();
-          } else {
-            console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
-            reject();
-          }
-        });
+        exportProcess
+          .on("exit", (code) => {
+            if (code === 0) {
+              console.log(`Rclone upload completed: ${fileName}`);
+              resolve();
+            } else {
+              console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
+              reject();
+            }
+          })
+          .on("error", (error) => {
+            console.error(`Error executing rclone command for ${fileName}:`, error);
+            reject(error);
+          });
       });
     }
   } catch (error) {
@@ -236,15 +241,20 @@ async function ftpCurlUpload(backupFiles = []) {
     const exportProcess = exec(uploadCommand);
 
     await new Promise((resolve, reject) => {
-      exportProcess.on("exit", (code) => {
-        if (code === 0) {
-          console.log(`FTP upload completed: ${fileName}`);
-          resolve();
-        } else {
-          console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
-          reject();
-        }
-      });
+      exportProcess
+        .on("exit", (code) => {
+          if (code === 0) {
+            console.log(`FTP upload completed: ${fileName}`);
+            resolve();
+          } else {
+            console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
+            reject();
+          }
+        })
+        .on("error", (error) => {
+          console.error(`Error executing FTP command for ${fileName}:`, error);
+          reject(error);
+        });
     });
   }
 }
