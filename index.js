@@ -3,6 +3,9 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+//CURRENT FOLDER
+const currentFolder = __dirname;
+
 // PostgreSQL database connection configuration
 const config = require("./config.js").config;
 const ignoreFile = path.join(__dirname, ".ignore");
@@ -48,9 +51,10 @@ async function foldersBackUps() {
   for (const folder of config.folders) {
     try {
       const backupFileName = `${folder.name}_${sufix}.zip`;
-      const backupFilePath = `./backups/${backupFileName}`;
-      const backupCommand = `cd ${shellQuote(folder.path)} && zip -r ${shellQuote(backupFilePath)} . `; //${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
+      const backupFilePath = `${currentFolder}/backups/${backupFileName}`;
+      const backupCommand = `cd ${shellQuote(folder.path)} && zip -r ${shellQuote(backupFilePath)} . ${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
       const exportProcess = exec(backupCommand);
+      exec(`cd ${shellQuote(currentFolder)}`);
 
       await new Promise((resolve, reject) => {
         exportProcess.on("exit", (code) => {
@@ -116,7 +120,7 @@ async function databaseBackUp() {
   const sufix = config.loopMode === "DAILY" ? new Date().getDate() : config.loopMode === "WEEKLY" ? new Date().getDay() + 1 : new Date().getMonth() + 1;
 
   const backupFileName = `${config.database}_${sufix}.sql`;
-  const backupFilePath = `./backups/${backupFileName}`;
+  const backupFilePath = `${currentFolder}/backups/${backupFileName}`;
   const backupCommand = `mysqldump --user=${config.user} --password=${config.password} --host=${config.host} --port=${config.port} ${config.database} > ${backupFilePath}`;
   const exportProcess = exec(backupCommand);
 
