@@ -164,15 +164,20 @@ async function rcloneSync(backupFiles = []) {
       const exportProcess = exec(rcloneCommand);
 
       await new Promise((resolve, reject) => {
-        exportProcess.on("exit", (code) => {
-          if (code === 0) {
-            console.log(`Rclone upload completed: ${fileName}`);
-            resolve();
-          } else {
-            console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
+        exportProcess
+          .on("exit", (code) => {
+            if (code === 0) {
+              console.log(`Rclone upload completed: ${fileName}`);
+              resolve();
+            } else {
+              console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
+              reject();
+            }
+          })
+          .on("error", (error) => {
+            console.error(`Error executing rclone command for ${fileName}:`, error);
             reject();
-          }
-        });
+          });
       });
     }
   } catch (error) {
