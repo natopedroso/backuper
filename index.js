@@ -50,6 +50,7 @@ async function foldersBackUps() {
 
   for (const folder of config.folders) {
     try {
+      console.log(`Creating backup for folder: ${folder.path}`);
       const backupFileName = `${folder.name}_${sufix}.zip`;
       const backupFilePath = `${currentFolder}/backups/${backupFileName}`;
       const backupCommand = `cd ${shellQuote(folder.path)} && zip -r ${shellQuote(backupFilePath)} . ${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
@@ -122,6 +123,9 @@ async function databaseBackUp() {
   const backupFileName = `${config.database}_${sufix}.sql`;
   const backupFilePath = `${currentFolder}/backups/${backupFileName}`;
   const backupCommand = `mysqldump --user=${config.user} --password=${config.password} --host=${config.host} --port=${config.port} ${config.database} > ${backupFilePath}`;
+
+  console.log("Executing database backup command:", backupCommand);
+
   const exportProcess = exec(backupCommand);
 
   await new Promise((resolve, reject) => {
@@ -152,6 +156,7 @@ async function rcloneSync(backupFiles = []) {
 
   try {
     for (const localFile of backupFiles) {
+      console.log(`Starting rclone upload for: ${localFile}`);
       const fileName = path.basename(localFile);
       const remotePath = joinRemotePath(rclone.path, fileName);
       const remoteTarget = `${rclone.name}:${remotePath}`;
@@ -159,20 +164,15 @@ async function rcloneSync(backupFiles = []) {
       const exportProcess = exec(rcloneCommand);
 
       await new Promise((resolve, reject) => {
-        exportProcess
-          .on("exit", (code) => {
-            if (code === 0) {
-              console.log(`Rclone upload completed: ${fileName}`);
-              resolve();
-            } else {
-              console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
-              reject();
-            }
-          })
-          .on("error", (error) => {
-            console.error(`Error executing rclone command for ${fileName}:`, error);
-            reject(error);
-          });
+        exportProcess.on("exit", (code) => {
+          if (code === 0) {
+            console.log(`Rclone upload completed: ${fileName}`);
+            resolve();
+          } else {
+            console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
+            reject();
+          }
+        });
       });
     }
   } catch (error) {
@@ -241,20 +241,15 @@ async function ftpCurlUpload(backupFiles = []) {
     const exportProcess = exec(uploadCommand);
 
     await new Promise((resolve, reject) => {
-      exportProcess
-        .on("exit", (code) => {
-          if (code === 0) {
-            console.log(`FTP upload completed: ${fileName}`);
-            resolve();
-          } else {
-            console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
-            reject();
-          }
-        })
-        .on("error", (error) => {
-          console.error(`Error executing FTP command for ${fileName}:`, error);
-          reject(error);
-        });
+      exportProcess.on("exit", (code) => {
+        if (code === 0) {
+          console.log(`FTP upload completed: ${fileName}`);
+          resolve();
+        } else {
+          console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
+          reject();
+        }
+      });
     });
   }
 }
