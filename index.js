@@ -49,7 +49,7 @@ async function foldersBackUps() {
     try {
       const backupFileName = `${folder.name}_${sufix}.zip`;
       const backupFilePath = `./backups/${backupFileName}`;
-      const backupCommand = `zip -r ${shellQuote(backupFilePath)} ${shellQuote(folder.path)}${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
+      const backupCommand = `cd ${shellQuote(folder.path)} && zip -r ${shellQuote(backupFilePath)} .${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
       const exportProcess = exec(backupCommand);
 
       await new Promise((resolve, reject) => {
@@ -249,7 +249,9 @@ function joinRemotePath(basePath, fileName) {
   const cleanedBase = String(basePath || "")
     .replace(/\\/g, "/")
     .replace(/\/+$/, "");
-  const cleanedFile = String(fileName || "").replace(/\\/g, "/").replace(/^\/+/, "");
+  const cleanedFile = String(fileName || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "");
 
   if (!cleanedBase) {
     return cleanedFile;
