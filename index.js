@@ -49,7 +49,7 @@ async function foldersBackUps() {
     try {
       const backupFileName = `${folder.name}_${sufix}.zip`;
       const backupFilePath = `./backups/${backupFileName}`;
-      const backupCommand = `cd ${shellQuote(folder.path)} && zip -r ${shellQuote(backupFilePath)} . ${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
+      const backupCommand = `cd ${shellQuote(folder.path)} && zip -r ${shellQuote(backupFilePath)} . `; //${ignoreArgs ? ` ${ignoreArgs}` : ""}`;
       const exportProcess = exec(backupCommand);
 
       await new Promise((resolve, reject) => {
