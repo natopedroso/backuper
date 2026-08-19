@@ -164,6 +164,20 @@ async function rcloneSync(backupFiles = []) {
       const remoteTarget = `${rclone.name}:${remotePath}`;
       const rcloneCommand = `rclone copyto ${shellQuote(localFile)} ${shellQuote(remoteTarget)} --progress --transfers=4 --checkers=8 --retries=3 --low-level-retries=10 --drive-chunk-size=64M --stats=1s`;
       const exportProcess = exec(rcloneCommand);
+      let stdErr = "";
+      let stdOut = "";
+
+      if (exportProcess.stderr) {
+        exportProcess.stderr.on("data", (chunk) => {
+          stdErr += String(chunk || "");
+        });
+      }
+
+      if (exportProcess.stdout) {
+        exportProcess.stdout.on("data", (chunk) => {
+          stdOut += String(chunk || "");
+        });
+      }
 
       await new Promise((resolve, reject) => {
         exportProcess
@@ -173,12 +187,12 @@ async function rcloneSync(backupFiles = []) {
               resolve();
             } else {
               console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
-              reject();
+              reject(new Error(`rclone copyto failed for ${fileName} (exit ${code}). stderr: ${stdErr.trim() || "(empty)"}. stdout: ${stdOut.trim() || "(empty)"}`));
             }
           })
           .on("error", (error) => {
             console.error(`Error executing rclone command for ${fileName}:`, error);
-            reject();
+            reject(error);
           });
       });
 
@@ -250,6 +264,20 @@ async function ftpCurlUpload(backupFiles = []) {
     ].join(" ");
 
     const exportProcess = exec(uploadCommand);
+    let stdErr = "";
+    let stdOut = "";
+
+    if (exportProcess.stderr) {
+      exportProcess.stderr.on("data", (chunk) => {
+        stdErr += String(chunk || "");
+      });
+    }
+
+    if (exportProcess.stdout) {
+      exportProcess.stdout.on("data", (chunk) => {
+        stdOut += String(chunk || "");
+      });
+    }
 
     await new Promise((resolve, reject) => {
       exportProcess.on("exit", (code) => {
@@ -258,7 +286,7 @@ async function ftpCurlUpload(backupFiles = []) {
           resolve();
         } else {
           console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
-          reject();
+          reject(new Error(`curl upload failed for ${fileName} (exit ${code}). stderr: ${stdErr.trim() || "(empty)"}. stdout: ${stdOut.trim() || "(empty)"}`));
         }
       });
     });
