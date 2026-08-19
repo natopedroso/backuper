@@ -3,6 +3,8 @@ const { exec } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 
+const REMOVE_LOCAL_AFTER_UPLOAD = true;
+
 //CURRENT FOLDER
 const currentFolder = __dirname;
 
@@ -179,6 +181,10 @@ async function rcloneSync(backupFiles = []) {
             reject();
           });
       });
+
+      if (REMOVE_LOCAL_AFTER_UPLOAD) {
+        await removeLocalBackupFile(localFile);
+      }
     }
   } catch (error) {
     console.error("Error uploading backup:", error);
@@ -256,6 +262,32 @@ async function ftpCurlUpload(backupFiles = []) {
         }
       });
     });
+
+    if (REMOVE_LOCAL_AFTER_UPLOAD) {
+      await removeLocalBackupFile(localFile);
+    }
+  }
+}
+
+async function removeLocalBackupFile(filePath) {
+  const absolutePath = path.resolve(filePath);
+  const backupsDir = path.resolve(currentFolder, "backups") + path.sep;
+
+  try {
+    if (!absolutePath.startsWith(backupsDir)) {
+      console.log(`Skipping local removal outside backups/: ${absolutePath}`);
+      return;
+    }
+
+    if (!fs.existsSync(absolutePath)) {
+      console.log(`Local backup file not found for removal: ${absolutePath}`);
+      return;
+    }
+
+    await fs.promises.unlink(absolutePath);
+    console.log(`Local backup removed from backups/: ${absolutePath}`);
+  } catch (error) {
+    console.error(`Error removing local backup file ${absolutePath}:`, error);
   }
 }
 

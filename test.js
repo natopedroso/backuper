@@ -28,6 +28,7 @@ const config = require("./config.js").config;
     } else {
       console.log("Upload skipped (uploadMode=none or incomplete upload config).");
     }
+
     process.exit(0);
   } catch (error) {
     console.error("Error creating database backup:", error);
