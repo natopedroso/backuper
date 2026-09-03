@@ -16,7 +16,7 @@ const config = require("./config.js").config;
     }
 
     const databaseBackupFile = await index.databaseBackUp();
-    createdBackupFiles.push(databaseBackupFile);
+    createdBackupFiles.unshift(databaseBackupFile);
 
     /**
      * UPLOAD
