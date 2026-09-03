@@ -4,6 +4,8 @@ const fs = require("fs");
 const path = require("path");
 
 const REMOVE_LOCAL_AFTER_UPLOAD = true;
+const UPLOAD_MAX_ATTEMPTS = 3;
+const UPLOAD_RETRY_DELAY_MS = 60 * 1000;
 
 //CURRENT FOLDER
 const currentFolder = __dirname;
@@ -26,7 +28,7 @@ cron.schedule(config.cron, async () => {
     }
 
     const databaseBackupFile = await databaseBackUp();
-    createdBackupFiles.push(databaseBackupFile);
+    createdBackupFiles.unshift(databaseBackupFile);
 
     /**
      * RCLONE SYNC
@@ -37,7 +39,7 @@ cron.schedule(config.cron, async () => {
       await rcloneSync(createdBackupFiles);
     }
   } catch (error) {
-    console.error("Error creating database backup:", error);
+    console.error("Error running backup:", error);
   }
 });
 
@@ -156,13 +158,13 @@ async function rcloneSync(backupFiles = []) {
     return;
   }
 
-  try {
-    for (const localFile of backupFiles) {
-      console.log(`Starting rclone upload for: ${localFile}`);
-      const fileName = path.basename(localFile);
+  for (const localFile of backupFiles) {
+    const fileName = path.basename(localFile);
+
+    await uploadWithRetry(fileName, "rclone", async () => {
       const remotePath = joinRemotePath(rclone.path, fileName);
       const remoteTarget = `${rclone.name}:${remotePath}`;
-      const rcloneCommand = `rclone copyto ${shellQuote(localFile)} ${shellQuote(remoteTarget)} --progress --transfers=4 --checkers=8 --retries=3 --low-level-retries=10 --drive-chunk-size=64M --stats=1s`;
+      const rcloneCommand = `rclone copyto ${shellQuote(localFile)} ${shellQuote(remoteTarget)} --progress --transfers=4 --checkers=8 --retries=1 --low-level-retries=1 --drive-chunk-size=64M --stats=1s`;
       const exportProcess = exec(rcloneCommand);
       let stdErr = "";
       let stdOut = "";
@@ -179,30 +181,49 @@ async function rcloneSync(backupFiles = []) {
         });
       }
 
-      await new Promise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
         exportProcess
           .on("close", (code) => {
             if (code === 0) {
-              console.log(`Rclone upload completed: ${fileName}`);
               resolve();
             } else {
-              console.error(`Error uploading ${fileName} with rclone. Exit code: ${code}`);
               reject(new Error(`rclone copyto failed for ${fileName} (exit ${code}). stderr: ${stdErr.trim() || "(empty)"}. stdout: ${stdOut.trim() || "(empty)"}`));
             }
           })
           .on("error", (error) => {
-            console.error(`Error executing rclone command for ${fileName}:`, error);
             reject(error);
           });
       });
+    });
 
-      if (REMOVE_LOCAL_AFTER_UPLOAD) {
-        await removeLocalBackupFile(localFile);
-      }
+    if (REMOVE_LOCAL_AFTER_UPLOAD) {
+      await removeLocalBackupFile(localFile);
     }
-  } catch (error) {
-    console.error("Error uploading backup:", error);
   }
+}
+
+async function uploadWithRetry(fileName, uploadMethod, uploadFile) {
+  for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      console.log(`Starting ${uploadMethod} upload for ${fileName} (attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS})`);
+      await uploadFile();
+      console.log(`${uploadMethod} upload completed: ${fileName}`);
+      return;
+    } catch (error) {
+      console.error(`${uploadMethod} upload failed for ${fileName} (attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS}):`, error);
+
+      if (attempt === UPLOAD_MAX_ATTEMPTS) {
+        throw new Error(`${uploadMethod} upload failed for ${fileName} after ${UPLOAD_MAX_ATTEMPTS} attempts`, { cause: error });
+      }
+
+      console.log(`Waiting ${UPLOAD_RETRY_DELAY_MS / 1000} seconds before retrying ${fileName}...`);
+      await wait(UPLOAD_RETRY_DELAY_MS);
+    }
+  }
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function shellQuote(value) {
@@ -248,46 +269,48 @@ async function ftpCurlUpload(backupFiles = []) {
 
   for (const localFile of files) {
     const fileName = path.basename(localFile);
-    const encodedFileName = encodeURIComponent(fileName);
-    const targetUrl = `ftp://${ftp.host}:${ftpPort}${remoteBasePath}/${encodedFileName}`;
-    const uploadCommand = [
-      "curl",
-      "--fail",
-      "--silent",
-      "--show-error",
-      "--ftp-create-dirs",
-      "--user",
-      shellQuote(`${ftp.user}:${ftp.password || ""}`),
-      "-T",
-      shellQuote(localFile),
-      shellQuote(targetUrl),
-    ].join(" ");
+    await uploadWithRetry(fileName, "FTP", async () => {
+      const encodedFileName = encodeURIComponent(fileName);
+      const targetUrl = `ftp://${ftp.host}:${ftpPort}${remoteBasePath}/${encodedFileName}`;
+      const uploadCommand = [
+        "curl",
+        "--fail",
+        "--silent",
+        "--show-error",
+        "--ftp-create-dirs",
+        "--user",
+        shellQuote(`${ftp.user}:${ftp.password || ""}`),
+        "-T",
+        shellQuote(localFile),
+        shellQuote(targetUrl),
+      ].join(" ");
 
-    const exportProcess = exec(uploadCommand);
-    let stdErr = "";
-    let stdOut = "";
+      const exportProcess = exec(uploadCommand);
+      let stdErr = "";
+      let stdOut = "";
 
-    if (exportProcess.stderr) {
-      exportProcess.stderr.on("data", (chunk) => {
-        stdErr += String(chunk || "");
-      });
-    }
+      if (exportProcess.stderr) {
+        exportProcess.stderr.on("data", (chunk) => {
+          stdErr += String(chunk || "");
+        });
+      }
 
-    if (exportProcess.stdout) {
-      exportProcess.stdout.on("data", (chunk) => {
-        stdOut += String(chunk || "");
-      });
-    }
+      if (exportProcess.stdout) {
+        exportProcess.stdout.on("data", (chunk) => {
+          stdOut += String(chunk || "");
+        });
+      }
 
-    await new Promise((resolve, reject) => {
-      exportProcess.on("exit", (code) => {
-        if (code === 0) {
-          console.log(`FTP upload completed: ${fileName}`);
-          resolve();
-        } else {
-          console.error(`Error uploading ${fileName} via FTP. Exit code: ${code}`);
-          reject(new Error(`curl upload failed for ${fileName} (exit ${code}). stderr: ${stdErr.trim() || "(empty)"}. stdout: ${stdOut.trim() || "(empty)"}`));
-        }
+      return new Promise((resolve, reject) => {
+        exportProcess
+          .on("close", (code) => {
+            if (code === 0) {
+              resolve();
+            } else {
+              reject(new Error(`curl upload failed for ${fileName} (exit ${code}). stderr: ${stdErr.trim() || "(empty)"}. stdout: ${stdOut.trim() || "(empty)"}`));
+            }
+          })
+          .on("error", reject);
       });
     });
 
